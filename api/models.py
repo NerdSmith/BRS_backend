@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import PermissionsMixin
+from django.contrib.auth.models import PermissionsMixin, AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
@@ -65,7 +65,7 @@ class UserManager(BaseUserManager):
         return self.none()
 
 
-class User(AbstractBaseUser, PermissionsMixin):
+class User(AbstractUser):
     username_validator = CustomUnicodeUsernameValidator()
     username = models.CharField(
         _('Логин'),
@@ -78,7 +78,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         },
     )
     first_name = models.CharField(_('Имя'), max_length=20, blank=True)
-    second_name = models.CharField(_('Фамилия'), max_length=20, blank=True)
+    last_name = models.CharField(_('Фамилия'), max_length=20, blank=True)
     patronymic = models.CharField(_('Отчество'), max_length=20, blank=True)
     email = models.EmailField(
         _('Адрес электронной почты'),
@@ -101,16 +101,29 @@ class User(AbstractBaseUser, PermissionsMixin):
             'Unselect this instead of deleting accounts.'
         )
     )
-    is_verified = models.BooleanField(
-        _('Подтвержденный'),
-        default=False,
-    )
 
     objects = UserManager()
 
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
+
+    def __str__(self):
+        return f"{self.first_name} {self.patronymic} {self.last_name}"
+
+    class Meta:
+        verbose_name = 'Пользователь'
+        verbose_name_plural = 'Пользователи'
+
+    def get_role(self) -> str:
+        if hasattr(self, "professor"):
+            return "professor"
+        elif hasattr(self, "student"):
+            return "student"
+        elif self.is_superuser:
+            return "admin"
+        else:
+            return "not set"
 
 
 class Student(models.Model):
@@ -128,6 +141,13 @@ class Student(models.Model):
         related_name='student_group',
         blank=True, null=True)
 
+    def __str__(self):
+        return str(self.user)
+
+    class Meta:
+        verbose_name = 'Студент'
+        verbose_name_plural = 'Студенты'
+
 
 class Professor(models.Model):
     subjects = models.ManyToManyField("Subject")
@@ -138,14 +158,35 @@ class Professor(models.Model):
         related_name='professor',
         blank=False, null=False)
 
+    def __str__(self):
+        return str(self.user)
+
+    class Meta:
+        verbose_name = 'Преподаватель'
+        verbose_name_plural = 'Преподаватели'
+
 
 class Direction(models.Model):
     name = models.CharField(_('Название направления'), max_length=50, blank=False)
     subjects = models.ManyToManyField("Subject", related_name="directions")
 
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = 'Направление'
+        verbose_name_plural = 'Направления'
+
 
 class Subject(models.Model):
     name = models.CharField(_('Навзвание предмета'), max_length=150, blank=False)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = 'Дисциплина'
+        verbose_name_plural = 'Дисциплины'
 
 
 class CourseGroup(models.Model):
@@ -171,8 +212,12 @@ class CourseGroup(models.Model):
     def __str__(self):
         return f"{self.course_number} курс {self.group_number} группа {self.EDUCATION_LEVELS_RU[self.higher_education_level]}"
 
+    class Meta:
+        verbose_name = 'Курс-группа'
+        verbose_name_plural = 'Курсы-группы'
 
-class GroupMarks(models.Model):
+
+class GroupMark(models.Model):
     subject = models.ForeignKey("Subject", on_delete=models.DO_NOTHING)
     professor = models.ForeignKey("Professor", on_delete=models.DO_NOTHING)
     group = models.ForeignKey("CourseGroup", on_delete=models.DO_NOTHING)
@@ -187,12 +232,26 @@ class GroupMarks(models.Model):
         _('Отчетность дисциплины'),
         max_length=1, choices=REPORTING_LEVELS, blank=False)
 
+    def __str__(self):
+        return f"{self.subject} Профессор: {self.professor} Группа: {self.group} {self.semester} семестр"
+
+    class Meta:
+        verbose_name = "Группа оценок"
+        verbose_name_plural = 'Группы оценок'
+
 
 class StudentMark(models.Model):
-    mark_group = models.ForeignKey("GroupMarks", on_delete=models.CASCADE)
+    mark_group = models.ForeignKey("GroupMark", on_delete=models.CASCADE)
     student = models.ForeignKey("Student", on_delete=models.DO_NOTHING)
-    att1 = models.IntegerField("Оценка за аттестацию 1", null=True)
-    att2 = models.IntegerField("Оценка за аттестацию 2", null=True)
-    att3 = models.IntegerField("Оценка за аттестацию 3", null=True)
-    exam = models.IntegerField("Оценка за экзамен", null=True)
-    additional = models.IntegerField("Дополнительные баллы", null=True)
+    att1 = models.IntegerField("Оценка за аттестацию 1", null=True, blank=True)
+    att2 = models.IntegerField("Оценка за аттестацию 2", null=True, blank=True)
+    att3 = models.IntegerField("Оценка за аттестацию 3", null=True, blank=True)
+    exam = models.IntegerField("Оценка за экзамен", null=True, blank=True)
+    additional = models.IntegerField("Дополнительные баллы", null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Оценкки студента'
+        verbose_name_plural = 'Оценки студентов'
+
+    def __str__(self):
+        return f"{self.mark_group} Студента: {self.student}"

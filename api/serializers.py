@@ -1,7 +1,7 @@
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from rest_framework import serializers
 
-from api.models import User, Professor, Student
+from api.models import User, Professor, Student, StudentMark, GroupMark, Subject, CourseGroup
 
 
 class MyUserCreateSerializer(UserCreateSerializer):
@@ -123,9 +123,47 @@ class ProfessorSerializer(WrUserSerializer):
         fields = ('pk', 'user', 'subjects')
 
 
+class SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = '__all__'
+
+
+class CourseGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseGroup
+        fields = "__all__"
+
+
 class StudentSerializer(WrUserSerializer):
     user = MyUserSerializer()
+    group = CourseGroupSerializer()
 
     class Meta:
         model = Student
         fields = ('pk', 'user', 'year_of_enrollment', 'record_book_number', 'group')
+
+
+class GroupMarkSerializer(serializers.ModelSerializer):
+    subject = SubjectSerializer()
+    professor = ProfessorSerializer()
+    group = CourseGroupSerializer()
+
+    class Meta:
+        model = GroupMark
+        fields = '__all__'
+
+
+class StudentMarksSerializer(serializers.ModelSerializer):
+    mark_group = GroupMarkSerializer()
+    student = StudentSerializer()
+
+    class Meta:
+        model = StudentMark
+        fields = '__all__'
+
+
+class SimpleStudentMarksSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentMark
+        fields = ("id", "att1", "att2", "att3", "additional", "exam",)
